@@ -51,31 +51,53 @@ public class Messages {
 
     public Message updateMessageById(int id, JsonObject obj) {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        try {
+            Connection con = Database.getConnection();
+            String sql = "UPDATE `message` SET `title` = ?,  `contents` = ?, `author`= ?, `sentTime` = ?";
+            PreparedStatement pstmt = con.prepareStatement(sql);
+            pstmt.setString(1, obj.getString("title"));
+            pstmt.setString(2, obj.getString("contents"));
+            pstmt.setString(3, obj.getString("author"));
+            pstmt.setString(4, obj.getString("sentTime"));
+            pstmt.executeUpdate();
+          
+            for (Message message : messageList) {
 
-        for (Message message : messageList) {
-            if (message.getId() == id) {
-                message.setAuthor(obj.getString("author"));
-                message.setContents(obj.getString("contents"));
-                message.setTitle(obj.getString("title"));
-                try {
-                    message.setSentTime(sdf.parse(obj.getString("sentTime")));
-                } catch (ParseException ex) {
-                    Logger.getLogger(Messages.class.getName()).log(Level.SEVERE, null, ex);
-                    message.setSentTime(new Date());
+                if (message.getId() == id) {
+                    message.setAuthor(obj.getString("author"));
+                    message.setContents(obj.getString("contents"));
+                    message.setTitle(obj.getString("title"));
+                    try {
+                        message.setSentTime(sdf.parse(obj.getString("sentTime")));
+                    } catch (ParseException ex) {
+                        Logger.getLogger(Messages.class.getName()).log(Level.SEVERE, null, ex);
+                        message.setSentTime(new Date());
+                    }
+                    return message;
                 }
-                return message;
             }
+        } catch (SQLException ex) {
+            Logger.getLogger(Messages.class.getName()).log(Level.SEVERE, null, ex);
         }
         return null;
     }
 
     public boolean deleteMessageById(int id) {
-
-        for (Message message : messageList) {
-            if (message.getId() == id) {
-                messageList.remove(message);
-                return true;
+        try {
+            Connection con = Database.getConnection();
+            String sql = "DELETE FROM `message` WHERE id = ?";
+            PreparedStatement pstmt = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+            for (Message message : messageList) {
+                if (message.getId() == id) {
+                    messageList.remove(message);
+                    return true;
+                }
             }
+
+        } catch (SQLException ex) {
+            Logger.getLogger(Messages.class.getName()).log(Level.SEVERE, null, ex);
         }
         return false;
     }
@@ -100,32 +122,28 @@ public class Messages {
 
     public JsonObject insertMessage(JsonObject json) {
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-            
             Connection con = Database.getConnection();
             String sql = "INSERT INTO `message` (`id`, `title`, `contents`, `author`, `sentTime`) VALUES (NULL, ?, ?, ?,?) ";
-            PreparedStatement pstmt = con.prepareStatement(sql);
+            PreparedStatement pstmt = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt.setString(1, json.getString("title"));
             pstmt.setString(2, json.getString("contents"));
             pstmt.setString(3, json.getString("author"));
             pstmt.setString(4, json.getString("sentTime"));
             pstmt.executeUpdate();
             ResultSet rs = pstmt.getGeneratedKeys();
-            if(rs.next()){
+            if (rs.next()) {
                 Message msg = new Message(rs.getInt(1), json);
                 messageList.add(msg);
                 return msg.getJson();
             }
-            
+
         } catch (SQLException ex) {
             Logger.getLogger(Messages.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return null ;
+        return null;
     }
 
-    
-    
-    public void refreshData(){
+    public void refreshData() {
         try {
             Connection con = Database.getConnection();
             Statement stmt = con.createStatement();
@@ -137,8 +155,8 @@ public class Messages {
                 json.add("author", rs.getString("author"));
                 json.add("contents", rs.getString("contents"));
                 json.add("sentTime", rs.getString("sentTime"));
-                
-                Message msg = new Message(rs.getInt("id"),json.build());
+
+                Message msg = new Message(rs.getInt("id"), json.build());
                 messageList.add(msg);
             }
         } catch (SQLException ex) {
